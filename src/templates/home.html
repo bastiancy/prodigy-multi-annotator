@@ -1,0 +1,149 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <main role="main" class="ml-sm-auto col-lg-10 col-lg-offset-1 pt-3 px-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                <h1 class="h2">Tareas de anotacion</h1>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                    <div class="btn-group mr-2">
+                    </div>
+                </div>
+            </div>
+            <div class="my-3 p-3 bg-white rounded shadow-sm"
+                v-for="project in projects">
+                <div class="row">
+                    <div class="col">
+                        <p><b>[[ project.name ]]</b></p>
+                        <p>[[ project.desc ]]</p>
+                    </div>
+                    <div class="col">
+                        <div v-if="typeof stats[project.name] != 'undefined'" style="margin-bottom: 5px;">
+                            <small class="text-muted">Estadisticas:</small>
+                            <br>Meta: [[ stats[project.name].meta ]]
+                            <br>Accept: [[ stats[project.name].accept ]]
+                            <br>Reject: [[ stats[project.name].reject ]]
+                            <br>Ignore: [[ stats[project.name].ignore ]]
+                        </div>
+                        <a v-if="current_task != project.name" @click="startJob(project)" class="btn btn-sm btn-primary" href="#" role="button">Comenzar anotacion</a>
+                        <a v-if="current_task == project.name && loading_task" class="btn btn-sm btn-warning disabled" href="#" role="button"><i class="fa fa-spin fa-spinner"></i> Cargando</a>
+                        <a v-if="current_task == project.name && !loading_task" @click="startJob(project)" class="btn btn-sm btn-success" href="#" role="button">Continuar anotacion</a>
+                        <a href="#" @click="showInstructions(project)" class="btn btn-sm btn-outline-secondary">Ver Instrucciones</a>
+                        <a href="#" @click="showComments(project)" class="btn btn-sm btn-outline-secondary">Comentar</a>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+<b-modal ref="instructionsModal" hide-footer size="lg" title="Instrucciones de la tarea">
+    <div v-html="instructions"></div>
+</b-modal>
+<b-modal ref="commentsModal" hide-footer title="Comentar sobre esta tarea">
+    <b-form-textarea id="textarea1"
+                     v-model="comments.text"
+                     placeholder="Ingrese sus comentarios aqui.."
+                     :rows="5">
+    </b-form-textarea>
+    <br>
+    <b-button variant="primary" @click="saveComments()">Guardar</b-button>
+</b-modal>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    var base_url = '{{ base_url }}';
+    var app = new Vue({
+        delimiters: ['[[',']]'],
+        el: '#app',
+        data: {
+            logged_in: false,
+            user: {token: '', name: ''},
+            projects: [],
+            stats: {},
+            instructions: '',
+            comments: {
+                project: null,
+                text: '',
+            },
+            current_task: null,
+            loading_task: false,
+        },
+        mounted: function() {
+            var that = this;
+            fetch(base_url + '/api/project')
+            .then(function(response) {
+                return response.json();
+            })
+            .then(function(data) {
+                that.projects = data;
+//                for (var item of data) {
+//                    that.getStatPerProjectAndUser(item);
+//                }
+            });
+        },
+        methods: {
+            logout: function() {
+                this.$cookies.remove('logged_user');
+                window.location = '/login';
+                return false;
+            },
+            showInstructions: function(project) {
+                this.instructions = project.instructions;
+                this.$refs.instructionsModal.show();
+            },
+            showComments: function(project) {
+                var that = this;
+                fetch(base_url + '/api/project/' + project.name + '/comments/' + this.user.token)
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    that.comments.project = project;
+                    that.comments.text = data.comments;
+                    that.$refs.commentsModal.show();
+                });
+            },
+            saveComments: function() {
+                var that = this;
+                var formData = new FormData();
+                formData.append('comments', this.comments.text);
+
+                fetch(base_url + '/api/project/' + this.comments.project.name + '/comments/' + this.user.token, {
+                    method: "POST",
+                    body: formData
+                })
+                .then(function(response) {
+                    that.$refs.commentsModal.hide();
+                });
+            },
+            getStatPerProjectAndUser: function(project) {
+                var that = this;
+                fetch(base_url + '/api/project/' + project.name + '/stats/' + this.user.token)
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    that.$set(that.stats, project.name, data);
+                });
+            },
+            startJob: function (project) {
+                var that = this;
+                this.current_task = project.name;
+                this.loading_task = true;
+
+                fetch(base_url + '/api/project/' + project.name + '/start_job/' + this.user.token)
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    that.loading_task = false;
+                    window.open(base_url + data.url, '_blank');
+                });
+            }
+        }
+    });
+</script>
+{% endblock %}

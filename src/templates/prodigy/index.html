@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <base href="/prodigy/">
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <title>Prodigy | {{ job }}</title>
+        <link rel="shortcut icon" href="favicon.ico">
+    </head>
+    <body>
+        <div id="root"></div>
+        <script>
+            (function () {
+                var prefix_url = '/prodigy/' + '{{ job }}';
+                var originalFetch = fetch;
+                fetch = function() {
+                    arguments[0] = prefix_url + arguments[0];
+                    return originalFetch.apply(this, arguments).then(function(data) {
+                        return data;
+                    });
+                };
+            })();
+        </script>
+        <script src="bundle.js"></script>
+    </body>
+</html>

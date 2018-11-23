@@ -1,0 +1,122 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <main role="main" class="col-md-10 col-md-offset-1 pt-3 px-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                <h1 class="h2">Available tasks</h1>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                    <div class="btn-group mr-2">
+                    </div>
+                </div>
+            </div>
+            {% for project in projects %}
+            <div class="my-3 p-3 bg-white rounded shadow-sm">
+                <div class="row">
+                    <div class="col">
+                        <p><b>{{ project.name }}</b></p>
+                        <p>{{ project.desc }}</p>
+                    </div>
+                    <div class="col">
+                        {% if project.stats %}
+                        <div style="margin-bottom: 5px;">
+                            <small class="text-muted">Estadisticas:</small>
+                            <br>Meta: {{ stats.meta }}
+                            <br>Accept: {{ project.stats.accept }}
+                            <br>Reject: {{ project.stats.reject }}
+                            <br>Ignore: {{ project.stats.ignore }}
+                        </div>
+                        {% endif %}
+                        <a v-if="current_task != project.name" @click="startJob(project)" class="btn btn-sm btn-primary" href="#" role="button">Comenzar anotacion</a>
+                        <a v-if="current_task == project.name && loading_task" class="btn btn-sm btn-warning disabled" href="#" role="button"><i class="fa fa-spin fa-spinner"></i> Cargando</a>
+                        <a v-if="current_task == project.name && !loading_task" @click="startJob(project)" class="btn btn-sm btn-success" href="#" role="button">Continuar anotacion</a>
+                        <a href="#" @click="showInstructions(project)" class="btn btn-sm btn-outline-secondary">Ver Instrucciones</a>
+                        <a href="#" @click="showComments(project)" class="btn btn-sm btn-outline-secondary">Comentar</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor  %}
+        </main>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    var base_url = '{{ base_url }}';
+    var app = new Vue({
+        delimiters: ['[[',']]'],
+        el: '#app',
+        data: {
+            current_task: null,
+            loading_task: false
+        },
+        mounted: function() {
+            var that = this;
+            fetch(base_url + '/api/project')
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    that.projects = data;
+                });
+        },
+        methods: {
+            showInstructions: function(project) {
+                this.instructions = project.instructions;
+                this.$refs.instructionsModal.show();
+            },
+            showComments: function(project) {
+                var that = this;
+                fetch(base_url + '/api/project/' + project.name + '/comments/' + this.user.token)
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    that.comments.project = project;
+                    that.comments.text = data.comments;
+                    that.$refs.commentsModal.show();
+                });
+            },
+            saveComments: function() {
+                var that = this;
+                var formData = new FormData();
+                formData.append('comments', this.comments.text);
+
+                fetch(base_url + '/api/project/' + this.comments.project.name + '/comments/' + this.user.token, {
+                    method: "POST",
+                    body: formData
+                })
+                .then(function(response) {
+                    that.$refs.commentsModal.hide();
+                });
+            },
+            getStatPerProjectAndUser: function(project) {
+                var that = this;
+                fetch(base_url + '/api/project/' + project.name + '/stats/' + this.user.token)
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    that.$set(that.stats, project.name, data);
+                });
+            },
+            startJob: function (project) {
+                var that = this;
+                this.current_task = project.name;
+                this.loading_task = true;
+
+                fetch(base_url + '/api/project/' + project.name + '/start_job/' + this.user.token)
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    that.loading_task = false;
+                    window.open(base_url + data.url, '_blank');
+                });
+            }
+        }
+    });
+</script>
+{% endblock %}
